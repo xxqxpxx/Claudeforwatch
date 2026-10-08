@@ -86,5 +86,22 @@
                 android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
                 android:value="0" />
         </service>
+
+        <!--
+          Phone companion provisioning over the Wear Data Layer (provision/ProvisionListenerService.kt),
+          all flavors. Exported so Google Play services can bind it; only an app with the SAME
+          application ID and signing key on a paired phone can send it messages.
+        -->
+        <service
+            android:name=".provision.ProvisionListenerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/claudeforwatch/provision"
+                    android:scheme="wear" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

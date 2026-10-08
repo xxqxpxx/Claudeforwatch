@@ -27,4 +27,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "ClaudeForWatch"
-include(":core", ":wear")
+include(":core", ":wear", ":phone")

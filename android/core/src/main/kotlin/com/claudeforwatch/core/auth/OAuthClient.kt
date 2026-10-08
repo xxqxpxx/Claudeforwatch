@@ -38,8 +38,17 @@ sealed class OAuthException(message: String) : Exception(message) {
     class SignedOut : OAuthException("Signed out. Sign in again.")
 }
 
-/** One in-progress authorization (QR shown, waiting for the code). */
-class PendingAuthorization(val pkce: Pkce, val authorizeUrl: String, val createdAtMillis: Long) {
+/**
+ * One in-progress authorization (QR shown, waiting for the code). [redirectUri] is what the
+ * authorize URL carried and what the token exchange must repeat: the watch always uses
+ * [OAuthConfig.REDIRECT_URI]; the phone companion also uses `http://localhost:<port>/callback`.
+ */
+class PendingAuthorization(
+    val pkce: Pkce,
+    val authorizeUrl: String,
+    val createdAtMillis: Long,
+    val redirectUri: String = OAuthConfig.REDIRECT_URI,
+) {
     fun isExpired(nowMillis: Long) = nowMillis - createdAtMillis > OAuthConfig.PENDING_TTL_MILLIS
     override fun toString() = "PendingAuthorization(createdAt=$createdAtMillis)"
 }
@@ -65,10 +74,13 @@ class OAuthClient(
     private val clock: () -> Long = System::currentTimeMillis,
     private val userAgent: String = com.claudeforwatch.core.CoreInfo.userAgent(),
 ) {
-    fun startAuthorization(pkce: Pkce = Pkce.generate()): PendingAuthorization =
-        PendingAuthorization(pkce, authorizeUrl(pkce), clock())
+    fun startAuthorization(pkce: Pkce = Pkce.generate(), redirectUri: String = OAuthConfig.REDIRECT_URI): PendingAuthorization =
+        PendingAuthorization(pkce, authorizeUrl(pkce, redirectUri), clock(), redirectUri)
 
-    /** Exchanges the pasted `<code>#<state>` for credentials (PROTOCOL §2 "Token exchange"). */
+    /**
+     * Exchanges the pasted `<code>#<state>` (or a callback URL with `code`/`state`) for
+     * credentials (PROTOCOL §2 "Token exchange"), using [PendingAuthorization.redirectUri].
+     */
     suspend fun exchange(pastedCode: String, pending: PendingAuthorization): Credentials {
         if (pending.isExpired(clock())) throw OAuthException.Expired()
         val code = parseCode(pastedCode, pending.pkce.state)
@@ -77,7 +89,7 @@ class OAuthClient(
             "code" to code,
             "state" to pending.pkce.state,
             "client_id" to OAuthConfig.CLIENT_ID,
-            "redirect_uri" to OAuthConfig.REDIRECT_URI,
+            "redirect_uri" to pending.redirectUri,
             "code_verifier" to pending.pkce.verifier,
         )
         var response = http.request(jsonPost(fields, beta = false))
@@ -159,16 +171,19 @@ class OAuthClient(
     }.getOrNull() ?: if (response.bodyString.contains("invalid_grant")) "invalid_grant" else null
 
     companion object {
+        /** `http://localhost:<port>/callback`: accepted by the server, capturable only off-watch (§2). */
+        fun loopbackRedirectUri(port: Int): String = "http://localhost:$port/callback"
+
         /**
          * Authorize URL with parameters in PROTOCOL §2 order. Values are form-encoded exactly like
          * Claude Code's `URLSearchParams` (space ⇒ `+`, `:` and `/` escaped).
          */
-        fun authorizeUrl(pkce: Pkce): String {
+        fun authorizeUrl(pkce: Pkce, redirectUri: String = OAuthConfig.REDIRECT_URI): String {
             val params = listOf(
                 "code" to "true",
                 "client_id" to OAuthConfig.CLIENT_ID,
                 "response_type" to "code",
-                "redirect_uri" to OAuthConfig.REDIRECT_URI,
+                "redirect_uri" to redirectUri,
                 "scope" to OAuthConfig.SCOPES.joinToString(" "),
                 "code_challenge" to pkce.challenge,
                 "code_challenge_method" to "S256",

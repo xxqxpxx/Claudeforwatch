@@ -11,7 +11,9 @@ android/
           Tested on the JVM against ../spec/fixtures and ../spec/expected.
   wear/   Wear OS app (Compose for Wear OS Material 3): OkHttp transport, Keystore-encrypted
           DataStore, speech / RemoteInput text entry, QR sign-in, tile, complication,
-          Ongoing Activity.
+          Ongoing Activity, Data Layer provisioning listener.
+  phone/  Minimal Android phone companion (Compose Material 3): signs in / takes an API key on
+          the phone and sends it to the watch over the Wear Data Layer. Stores nothing.
 ```
 
 ## Versions (what actually resolves and compiles here)
@@ -36,6 +38,11 @@ android/
 | tiles / protolayout(-material3) | 1.6.2 / 1.4.2 | |
 | watchface-complications-data-source-ktx | 1.3.0 | |
 | zxing core | 3.5.4 | |
+| play-services-wearable (wear + phone) | 20.0.1 | newest on Google Maven; compiles against android-36 |
+| androidx.browser (phone, Custom Tabs) | 1.10.0 | |
+| Compose Material 3 (phone) | 1.4.0 | from the Compose BOM above |
+| kotlinx-coroutines-play-services (phone) | 1.11.0 | `Task.await()` |
+| phone minSdk / targetSdk / compileSdk | 26 / 35 / 36 | |
 | JUnit (core tests) | 6.1.3 (Jupiter) + kotlin-test | |
 
 Why the step-downs: Wear Compose 1.7.x, Compose 1.12 (BOM ≥ 2026.08), core 1.19,
@@ -59,9 +66,10 @@ echo "sdk.dir=$ANDROID_HOME" > local.properties   # gitignored
 ./gradlew :wear:assembleDebug           # both flavors: storeDebug + personalDebug
 ./gradlew :wear:assemblePersonalDebug   # only the personal build
 ./gradlew :wear:lintStoreDebug
+./gradlew :phone:assemblePersonalDebug  # phone companion (same flavors as the watch)
 ```
 
-APKs land in `wear/build/outputs/apk/<flavor>/<buildType>/`.
+APKs land in `wear/build/outputs/apk/<flavor>/<buildType>/` and `phone/build/outputs/apk/<flavor>/<buildType>/`.
 
 ### Flavors and `PERSONAL_MODE`
 
@@ -120,6 +128,50 @@ The PKCE verifier/state are valid for 10 minutes; after that *New code* restarts
 Tokens refresh silently (one shared refresh for concurrent requests; the rotated refresh token
 is persisted first). A rejected refresh signs you out. *Settings → Sign out* removes the
 credentials, routine token, chats and tile/complication state.
+
+## Provisioning from your phone
+
+The easiest way to get credentials onto the watch if you have an **Android** phone: the small
+companion app in `phone/` does the sign-in on the phone and sends the result to the watch over
+the Wear Data Layer (Bluetooth / Wi-Fi through the Wear OS app). No computer, no ADB, no typing on
+the watch.
+
+1. Build and install the phone APK with the **same flavor** as the watch app
+   (`phone-personal-*.apk` for `wear-personal-*.apk`, `phone-store-*.apk` for `wear-store-*.apk`):
+   ```sh
+   ./gradlew :phone:assemblePersonalDebug :wear:assemblePersonalDebug
+   adb -s <phone> install -r phone/build/outputs/apk/personal/debug/phone-personal-debug.apk
+   adb -s <watch> install -r wear/build/outputs/apk/personal/debug/wear-personal-debug.apk
+   ```
+2. Make sure the watch is paired with the phone in the Wear OS app (or Galaxy Wearable). The
+   phone app's *Watches* row lists the connected watches.
+3. Personal flavor: read the warning, tick *I understand*, tap **Sign in with Claude and send to
+   watch**, sign in in the browser tab that opens, and return to the app. Done: each watch replies
+   `ok: signed in as …` (also shown as a toast on the watch). If the browser can't come back to
+   the app (it never reaches `http://localhost`), tap *Paste the code instead*, open the code
+   page, and paste the `code#state` it shows.
+   Any flavor: paste a Console key into **Send an API key to the watch** and tap *Send to watch*.
+
+How it works: the phone runs PKCE (PROTOCOL §2) with a `http://localhost:<port>/callback`
+redirect caught by a one-shot socket on 127.0.0.1 (the paste fallback uses the
+platform.claude.com redirect with the same verifier/state, like `watch-login.py`), exchanges the
+code, fills the org/email from `/api/oauth/profile` if missing, and sends the PROTOCOL §1.1 record
+(base64) as `{"kind":"credentials","value":…}` on `/claudeforwatch/provision`; an API key goes as
+`{"kind":"api_key","value":…}`. The watch's `ProvisionListenerService` applies it with the same
+code as the ADB receiver and answers on `/claudeforwatch/provision/result`. As with the script,
+this is a token pair separate from any other login. The phone keeps everything in memory only
+and never logs or shows tokens.
+
+Requirements and limits:
+
+* **Both APKs must have the same application ID and be signed with the same key.** The Data
+  Layer only delivers messages between apps that match on both; that is also its security
+  boundary, which is why the listener is safe to ship in every flavor (store builds accept
+  `api_key` only; Claude-account records need the personal build, as with ADB). Debug builds
+  made on one machine share the debug key; for release builds sign both with your own key.
+* **iPhone users can't use this**: a Wear OS watch paired with an iPhone isn't possible, and the
+  Data Layer needs an Android phone. Use `scripts/watch-login.py` over ADB instead (below).
+  (Apple Watch users don't need either: see the end of the next section.)
 
 ## Getting credentials onto the watch
 
@@ -234,3 +286,7 @@ watch or emulator in this session:
 * Ongoing Activity chip appearance and the POST_NOTIFICATIONS prompt.
 * Layout on small round (≈ 192 dp) and square screens, large font scale, rotary scrolling.
 * Release (R8-minified) build behaviour of kotlinx.serialization at runtime.
+* The phone companion end to end: Data Layer delivery and the watch's reply on a real paired
+  phone + watch, `connectedNodes` naming, Chrome Custom Tab redirecting to `http://localhost`
+  (and the paste fallback when it doesn't), the live token exchange from the phone, and the
+  phone UI on small screens / large font scale.
