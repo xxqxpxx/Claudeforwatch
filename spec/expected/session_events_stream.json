@@ -1,0 +1,11 @@
+{"items":[
+ {"seq":7,"kind":"user","text":"Commit and push"},
+ {"seq":10,"kind":"assistant","text":"Committing now."},
+ {"seq":10,"kind":"tool","tool":"Bash","text":"git push -u origin feature"},
+ {"seq":11,"kind":"permission","requestId":"req_fixture_1","tool":"Bash","text":"git push -u origin feature"}
+],
+ "streamingTextBeforeSeq10":"Committing now.",
+ "lastSequence":12,
+ "ignoredFrames":["session_update"],
+ "duplicateSequenceDropped":9,
+ "pendingPermission":{"requestId":"req_fixture_1","tool":"Bash","summary":"git push -u origin feature"}}

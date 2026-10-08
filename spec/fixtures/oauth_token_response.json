@@ -1,0 +1,1 @@
+{"token_type":"Bearer","access_token":"sk-ant-oat01-fixture-access","refresh_token":"sk-ant-ort01-fixture-refresh","expires_in":28800,"scope":"user:profile user:inference user:sessions:claude_code","organization":{"uuid":"org-uuid-fixture","name":"Fixture Org"},"account":{"uuid":"acct-uuid-fixture","email_address":"you@example.com"}}

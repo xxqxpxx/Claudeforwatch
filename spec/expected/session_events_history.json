@@ -1,0 +1,8 @@
+{"items":[
+ {"seq":1,"kind":"system","text":"Session started (claude-sonnet-5-5)"},
+ {"seq":2,"kind":"user","text":"Run the tests"},
+ {"seq":3,"kind":"assistant","text":"Running the tests."},
+ {"seq":3,"kind":"tool","tool":"Bash","text":"npm test"},
+ {"seq":5,"kind":"assistant","text":"Tests pass. Ready to commit."},
+ {"seq":6,"kind":"turnEnd","isError":false}
+],"lastSequence":6}

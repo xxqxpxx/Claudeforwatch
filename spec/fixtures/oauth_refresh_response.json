@@ -1,0 +1,1 @@
+{"token_type":"Bearer","access_token":"sk-ant-oat01-fixture-access-2","refresh_token":"sk-ant-ort01-fixture-refresh-2","expires_in":28800,"scope":"user:profile user:inference user:sessions:claude_code"}

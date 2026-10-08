@@ -1,0 +1,4 @@
+{"visibleOrder":["cse_02Action","session_03Running","session_01Idle"],
+ "hidden":["session_04Archived"],
+ "needsActionCount":1,
+ "kinds":{"session_01Idle":"cloud","cse_02Action":"remoteControl","session_03Running":"cloud"}}
