@@ -33,6 +33,20 @@ class SignInViewModel(private val g: AppGraph) : ViewModel() {
     val ui: StateFlow<SignInUi> = _ui.asStateFlow()
     private var pending: PendingAuthorization? = null
 
+    init {
+        // Credentials can also arrive from outside this screen: ProvisionReceiver writes them
+        // when the user pushes an API key, the QR's code or a credentials record over ADB.
+        // Any save to the token store while this screen is open finishes the sign-in.
+        viewModelScope.launch {
+            g.tokenStore.changes.collect {
+                if (g.tokenStore.load() != null && _ui.value.step != SignInStep.Done) {
+                    pending = null
+                    _ui.update { it.copy(step = SignInStep.Done, error = null) }
+                }
+            }
+        }
+    }
+
     /** PLAN §3: validate a pasted key with a 1-token call before storing it. */
     fun submitApiKey(raw: String) {
         val key = raw.trim().filterNot { it.isWhitespace() }
@@ -68,25 +82,35 @@ class SignInViewModel(private val g: AppGraph) : ViewModel() {
         val p = g.oauth.startAuthorization()
         pending = p
         _ui.update { it.copy(step = SignInStep.Qr(p.authorizeUrl), error = null) }
+        // Persist so ProvisionReceiver can finish this exchange (`--es oauth_code`), 10 min TTL.
+        viewModelScope.launch { g.pendingAuth.save(p) }
     }
 
     /** `<code>#<state>` pasted from the phone (PROTOCOL §2). */
     fun submitCode(code: String) {
-        val p = pending ?: return showQr()
         val qr = _ui.value.step
         _ui.update { it.copy(step = SignInStep.Working, error = null) }
         viewModelScope.launch {
+            val p = pending ?: g.pendingAuth.load()
+            if (p == null) return@launch showQr()
             val ok = attempt({ msg -> _ui.update { it.copy(step = qr, error = msg) } }) {
                 val creds = g.oauth.exchange(code, p)
                 g.auth.signIn(creds)
             }
             if (ok != null) {
                 pending = null
+                g.pendingAuth.clear()
                 _ui.update { it.copy(step = SignInStep.Done) }
             }
         }
     }
 
-    fun back() = _ui.update { it.copy(step = SignInStep.Choose, error = null) }
+    fun back() {
+        if (pending != null) {
+            pending = null
+            viewModelScope.launch { g.pendingAuth.clear() }
+        }
+        _ui.update { it.copy(step = SignInStep.Choose, error = null) }
+    }
     fun dismissError() = _ui.update { it.copy(error = null) }
 }

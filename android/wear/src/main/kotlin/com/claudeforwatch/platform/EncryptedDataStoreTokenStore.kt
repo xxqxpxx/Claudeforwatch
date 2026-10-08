@@ -11,7 +11,10 @@ import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.dataStoreFile
 import com.claudeforwatch.core.auth.Credentials
 import com.claudeforwatch.core.auth.TokenStore
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import java.io.InputStream
 import java.io.OutputStream
 import java.security.KeyStore
@@ -77,6 +80,9 @@ class EncryptedBlobStore(context: Context, fileName: String, private val cipher:
         produceFile = { context.applicationContext.dataStoreFile(fileName) },
     )
 
+    /** Emits after every write or clear (not for the value present when collection starts). */
+    val changes: Flow<Unit> get() = store.data.drop(1).map { }
+
     suspend fun read(): ByteArray? {
         val blob = store.data.first()
         if (blob.isEmpty()) return null
@@ -101,6 +107,13 @@ class EncryptedBlobStore(context: Context, fileName: String, private val cipher:
 /** [TokenStore] over `auth.pb` (PROTOCOL §1.1). The JSON record never leaves memory unencrypted. */
 class EncryptedDataStoreTokenStore(private val blobs: EncryptedBlobStore) : TokenStore {
     constructor(context: Context) : this(EncryptedBlobStore(context, "auth.pb"))
+
+    /**
+     * Emits after every save or clear, from any writer in the process (the sign-in screen, or
+     * [com.claudeforwatch.provision.ProvisionReceiver] pushing credentials over ADB). Carries no
+     * data; call [load] to see what was written.
+     */
+    val changes: Flow<Unit> get() = blobs.changes
 
     override suspend fun load(): Credentials? {
         val bytes = blobs.read() ?: return null

@@ -121,6 +121,73 @@ Tokens refresh silently (one shared refresh for concurrent requests; the rotated
 is persisted first). A rejected refresh signs you out. *Settings → Sign out* removes the
 credentials, routine token, chats and tile/complication state.
 
+## Getting credentials onto the watch
+
+A watch has no clipboard, and the phone-keyboard handoff above needs a paired phone with
+Gboard. With ADB (USB on an emulator, Wireless debugging on a watch, see *Install*) you can push
+credentials from the computer instead. No server and no phone app are involved.
+
+The app has a `ProvisionReceiver` for this (action `com.claudeforwatch.PROVISION`). It is
+declared **only in the `personal` flavor and in debug builds**: it is exported without a
+permission, so any app on the watch could send it and overwrite the stored credentials (it can't
+read them). The distributable `store` release APK doesn't contain it. The broadcast prints
+`Broadcast completed: result=0, data="ok: signed in as …"` on success,
+`result=1, data="error: …"` on failure, and `result=0` with no `data` if the receiver isn't in
+the installed build or the package name is wrong. The watch also shows a toast and buzzes, and an
+open sign-in screen moves on by itself.
+
+**1. Script (preferred).** `../scripts/watch-login.py` (Python 3.8+, stdlib only) does the
+whole Claude sign-in in the computer's browser and pushes the result:
+
+```sh
+python3 scripts/watch-login.py                              # sign in, push to the only adb device
+python3 scripts/watch-login.py --serial 192.168.1.20:41235  # pick a device
+python3 scripts/watch-login.py --code 'abc…#xyz…'           # finish the QR sign-in the watch is showing
+python3 scripts/watch-login.py --api-key -                  # API key, typed hidden
+python3 scripts/watch-login.py --print-only                 # just print the base64 record
+python3 scripts/watch-login.py --self-test
+```
+
+It runs PKCE (PROTOCOL §2) with a `http://localhost:<port>/callback` redirect, exchanges the
+code, and sends the PROTOCOL §1.1 record as `--es credentials_b64`. If the browser can't reach
+localhost (SSH, another machine), open the second URL it prints and paste the `code#state` that
+platform.claude.com shows. That login is a **separate token pair** from Claude Code's own login
+on the computer, so the watch's refresh-token rotation never logs the `claude` CLI out. It uses
+Claude Code's OAuth client: personal use only (§1.2). `--package` defaults to
+`com.claudeforwatch.personal`; use `--package com.claudeforwatch` for a store *debug* build
+(API keys only there).
+
+**2. Raw `adb` (no script).** Exactly one of `api_key`, `oauth_code`, `credentials_b64`:
+
+```sh
+adb shell am broadcast -a com.claudeforwatch.PROVISION --include-stopped-packages \
+  -n com.claudeforwatch.personal/com.claudeforwatch.provision.ProvisionReceiver \
+  --es api_key sk-ant-api03-…
+
+# Finish the QR sign-in the watch is showing (within its 10 minutes); quote it for the # sign:
+adb shell am broadcast -a com.claudeforwatch.PROVISION --include-stopped-packages \
+  -n com.claudeforwatch.personal/com.claudeforwatch.provision.ProvisionReceiver \
+  --es oauth_code "'abc…#xyz…'"
+```
+
+`oauth_code` uses the PKCE verifier the watch saved when it drew the QR (kept in a small
+DataStore for 10 minutes, so it survives the app being closed). `credentials_b64` takes a base64
+PROTOCOL §1.1 record; a missing `expiresAt` becomes now + 8 h − 60 s, an expired token is
+refreshed once, and a missing `organizationUuid` is filled from `/api/oauth/profile`. The
+argument is visible in `ps` on the computer while `adb` runs.
+
+**3. Zero-code fallback: let adb type.** Open the watch's code (or API key) field so the
+keyboard is up, then:
+
+```sh
+adb shell input text 'abc…\#xyz…'
+```
+
+Escape `#` as `\#` and type spaces as `%s` (`input text` treats a bare `%s` as a space).
+
+Apple Watch users don't need any of this: the code field opens the system "Type on iPhone"
+sheet, which accepts a paste from the iPhone clipboard.
+
 ## How the app behaves
 
 * **Ask**: big mic → system dictation (`ACTION_RECOGNIZE_SPEECH`; falls back to the RemoteInput

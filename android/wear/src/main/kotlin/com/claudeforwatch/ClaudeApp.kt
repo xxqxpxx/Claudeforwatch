@@ -13,6 +13,7 @@ import com.claudeforwatch.core.auth.AuthProvider
 import com.claudeforwatch.core.auth.AuthState
 import com.claudeforwatch.core.auth.OAuthClient
 import com.claudeforwatch.data.DataStoreThreadStore
+import com.claudeforwatch.data.PendingAuthStore
 import com.claudeforwatch.data.RoutineSecretStore
 import com.claudeforwatch.data.SettingsRepository
 import com.claudeforwatch.data.WidgetSnapshotStore
@@ -44,6 +45,9 @@ class AppGraph(context: Context) {
     val settings = SettingsRepository(context)
     val snapshot = WidgetSnapshotStore(context)
     val routineSecret = RoutineSecretStore(context)
+
+    /** PKCE material of the QR currently (or recently) shown, for the ADB `oauth_code` path. */
+    val pendingAuth = PendingAuthStore(context)
 
     /** Sessions and usage need a Claude-account sign-in, which only PERSONAL_MODE builds offer. */
     fun canUseSessions(state: AuthState): Boolean =

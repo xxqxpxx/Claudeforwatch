@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Merged only into the personal flavor (sideloaded, own account only; never published).
+  The distributable storeRelease APK must NOT declare this receiver.
+
+  ADB credential provisioning (see ProvisionReceiver.kt, android/README.md, scripts/watch-login.py).
+  exported="true" without a permission so `adb shell am broadcast` can reach it, which also means
+  ANY app on the watch can send it: write-only risk (overwriting the stored credentials), never
+  read access. That is why it exists only in personal and debug builds.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <receiver
+            android:name="com.claudeforwatch.provision.ProvisionReceiver"
+            android:exported="true"
+            tools:ignore="ExportedReceiver">
+            <intent-filter>
+                <action android:name="com.claudeforwatch.PROVISION" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
