@@ -1,0 +1,130 @@
+# Generate the Xcode project with:  brew install xcodegen && xcodegen generate
+name: ClaudeForWatch
+options:
+  bundleIdPrefix: com.claudeforwatch
+  deploymentTarget:
+    watchOS: "10.0"
+  createIntermediateGroups: true
+  developmentLanguage: en
+
+configs:
+  Debug: debug
+  Release: release
+  # Personal build: enables "Sign in with Claude" (unofficial OAuth), the
+  # Sessions tab and the usage meter. For your own watch only; never ship it.
+  Personal: release
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # Set your team here or in Xcode (Signing & Capabilities).
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+  configs:
+    Personal:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) PERSONAL_MODE"
+
+packages:
+  ClaudeWatchKit:
+    path: ../ClaudeWatchKit
+
+targets:
+  ClaudeForWatch:
+    type: application
+    platform: watchOS
+    deploymentTarget: "10.0"
+    sources:
+      - path: ClaudeForWatch
+      - path: Shared
+    dependencies:
+      - package: ClaudeWatchKit
+      - target: ClaudeForWatchWidgets
+        embed: true
+    entitlements:
+      path: ClaudeForWatch/ClaudeForWatch.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.claudeforwatch
+    info:
+      path: ClaudeForWatch/Info.plist
+      properties:
+        CFBundleDisplayName: Claude for Watch
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        WKApplication: true
+        WKWatchOnly: true
+        # Siri: lets "Ask Claude" match the App Shortcut phrase "Ask \(.applicationName)".
+        INAlternativeAppNames:
+          - INAlternativeAppName: Claude
+        NSMicrophoneUsageDescription: Dictate messages to Claude with your voice.
+        # App Transport Security left at its secure defaults (HTTPS only).
+        NSAppTransportSecurity: {}
+        CFBundleURLTypes:
+          - CFBundleURLName: com.claudeforwatch.app
+            CFBundleURLSchemes:
+              - claudeforwatch
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.claudeforwatch.app
+        PRODUCT_NAME: ClaudeForWatch
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "4"
+        SKIP_INSTALL: NO
+        GENERATE_INFOPLIST_FILE: NO
+
+  ClaudeForWatchWidgets:
+    type: app-extension
+    platform: watchOS
+    deploymentTarget: "10.0"
+    sources:
+      - path: ClaudeForWatchWidgets
+      - path: Shared
+    dependencies:
+      - package: ClaudeWatchKit
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+    entitlements:
+      path: ClaudeForWatchWidgets/ClaudeForWatchWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.claudeforwatch
+    info:
+      path: ClaudeForWatchWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Claude for Watch
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.claudeforwatch.app.widgets
+        PRODUCT_NAME: ClaudeForWatchWidgets
+        TARGETED_DEVICE_FAMILY: "4"
+        SKIP_INSTALL: YES
+        GENERATE_INFOPLIST_FILE: NO
+
+schemes:
+  ClaudeForWatch:
+    build:
+      targets:
+        ClaudeForWatch: all
+        ClaudeForWatchWidgets: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+  ClaudeForWatch-Personal:
+    build:
+      targets:
+        ClaudeForWatch: all
+        ClaudeForWatchWidgets: all
+    run:
+      config: Personal
+    archive:
+      config: Personal
