@@ -1,0 +1,4 @@
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <!-- Warm accent, not black: watch guideline (dark icons disappear on a black face). -->
+    <solid android:color="#FFD97757" />
+</shape>
