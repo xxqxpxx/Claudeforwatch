@@ -145,3 +145,47 @@ lightweight chat threads stored on the watch, backed by the Messages API.
 * **Push notifications**: Remote Control pushes go only to the official Claude
   mobile app. A standalone watch app cannot receive them without a server, so
   v1 polls/streams while in the foreground and uses complications for status.
+
+## 7. Additions from the second research pass (verified)
+
+* **Monthly API credits for subscribers (official, Oct 7 2026)**: Max 5x $100/mo,
+  Max 20x $200/mo, Team $20 per Standard seat + $100 per Premium seat (pooled,
+  cap $500). Pro, Free and Enterprise are not eligible. Claimed by linking a
+  Console organization at claude.ai Settings > Billing after 7 days on the
+  plan. Covers the Claude API, Managed Agents and the Agent SDK; no rollover.
+  Source: https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers.
+  → This is the sanctioned way to "use your Claude subscription" from a
+  third-party watch app: an API key in the linked Console org.
+* **Enforcement detail**: calling `/v1/messages` with a subscription OAuth
+  token and without the Claude Code identity headers returns
+  `400 invalid_request_error: "This credential is only authorized for use with
+  Claude Code and cannot be used for other API requests."` Spoofing the
+  identity (beta `claude-code-20250219` + "You are Claude Code…" system
+  prompt) is exactly what Anthropic acted against in Jan–Feb 2026, with account
+  bans reported (The Register, 2026-02-20). Policy risk for a distributed app:
+  high. Personal use of your own account: still a Consumer ToS violation.
+* **Routines fire endpoint (official, experimental)**:
+  `POST https://api.anthropic.com/v1/claude_code/routines/{trig_…}/fire`,
+  `Authorization: Bearer <per-routine token>`, `anthropic-version: 2023-06-01`,
+  body `{"text": "…"}` → `{claude_code_session_id, claude_code_session_url}`.
+  Trigger-only, no read access, 30/h per routine. A watch can legitimately
+  start a predefined cloud session this way. Source:
+  https://platform.claude.com/docs/en/api/claude-code/routines-fire.
+* **Usage endpoint (unofficial)**: `GET https://api.anthropic.com/api/oauth/usage`
+  with the OAuth token returns `five_hour` / `seven_day` `{utilization, resets_at}`;
+  `GET /api/oauth/profile` returns account + organization. Useful for a
+  "usage" complication in Claude-account mode.
+* **Audio input is not supported by the Messages API** (no audio content
+  block in 2026). Voice must be transcribed on-device (SFSpeechRecognizer on
+  watchOS, SpeechRecognizer/RemoteInput on Wear OS) and sent as text.
+* **Model choice for the watch**: `claude-haiku-5-5` ($0.10/$0.50 per MTok,
+  1M context) with `output_config: {effort: "low"}` and small `max_tokens` for
+  fast replies; handle `stop_reason: "refusal"`. Assistant prefill is rejected
+  on all 5.x models.
+* **Managed Agents** (`/v1/sessions`, SSE stream with `event_deltas[]=agent.message`)
+  work with an API key and are covered by the subscriber credits: a compliant
+  way to run persistent agent sessions from the watch, though they run in an
+  Anthropic sandbox rather than on the user's machine.
+* The `GET /v1/code/sessions` controller API is private; token exchange body
+  may need `application/x-www-form-urlencoded` (one source) rather than JSON
+  (two sources). The shared client tries JSON and falls back to form encoding.
