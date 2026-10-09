@@ -43,6 +43,15 @@ enum AuthMode { apiKey, claudeAccount }
 > apps using it and may block or suspend accounts that do. Use it only with
 > your own account, at your own risk. The supported option is an API key.
 
+### 1.3 Chat API key next to a Claude account
+A `claudeAccount` record may also carry `apiKey`. Chat (§4) then uses the key
+(`x-api-key`, plain `WATCH_SYSTEM_PROMPT`, billed to the key's Console org,
+which Max and Team plans fund with monthly API credits) while sessions, usage
+and §7 keep using the OAuth token. A token refresh keeps the key. Sending an
+API key to a watch that is signed in with Claude adds it this way instead of
+replacing the sign-in. Added after a live test where chat on the account
+token returned 429.
+
 ## 2. OAuth (claudeAccount mode)
 
 * Authorize: `https://claude.ai/oauth/authorize`
@@ -132,7 +141,12 @@ Request:
   `error` (`error.type`, `error.message`). `stop_reason == "refusal"` renders
   the refusal notice; `"max_tokens"` appends "…".
 * Errors: 401 ⇒ refresh (claudeAccount) or "check your key"; 429 ⇒ show
-  `retry-after`; 400 with message containing "only authorized for use with
+  the server's `error.message` plus the reset time from `retry-after`, else
+  `anthropic-ratelimit-unified-reset` (epoch seconds), else the RFC 3339
+  `anthropic-ratelimit-{requests,tokens}-reset`; on the account token also
+  suggest adding a chat API key (§1.3). Failed requests are logged to logcat
+  tag `CfwApi` with status, path, error type/message, `request-id` and the
+  rate-limit headers (never credentials); 400 with message containing "only authorized for use with
   Claude Code" ⇒ show the §1.2 explanation; 529 ⇒ "Claude is overloaded".
 * Never auto-retry a completion request (it may already have been billed).
 
@@ -163,6 +177,13 @@ Session { id, title, created_at, last_event_at, status: "active"|"archived",
           user's machine; anything else = cloud), unread: bool,
           config: { model }, external_metadata: { post_turn_summary?, pending_action? } }
 ```
+Shape drift seen on a live account (Oct 2026): `external_metadata.post_turn_summary`
+can be an **object** such as `{"needs_action":"…","summary":"…"}` instead of a
+string, and `pending_action` can be a plain string. Clients keep both as raw
+JSON, show `needs_action`, then `summary`/`text`/`title`, then the first string
+value, and decode the list one session at a time so an undecodable session is
+skipped rather than failing the screen (`spec/fixtures/sessions_list_drift.json`).
+
 Sort for display: `requires_action` first, then `running`, then by
 `last_event_at` desc. Hide `archived` unless the user asks. Poll every 20 s
 while the list is on screen.
@@ -255,9 +276,23 @@ creating an API-triggered routine) and its id (`trig_…`):
 `{claude_code_session_id, claude_code_session_url}`. In `claudeAccount` mode
 the app then opens that session in the viewer.
 
-## 7. Fixtures (spec/fixtures)
+## 7. claude.ai web chats (EXPERIMENTAL, personal builds)
+Anthropic documents no API for claude.ai chat history. The watch tries the
+routes the claude.ai web app uses, with the OAuth bearer token, on
+`https://claude.ai` and then `https://api.anthropic.com`:
+`GET /api/organizations/{org}/chat_conversations?limit=30` and
+`GET /api/organizations/{org}/chat_conversations/{uuid}?tree=True&rendering_mode=messages`
+(headers: `Authorization`, `anthropic-version`, `anthropic-beta: oauth-2025-04-20`,
+`anthropic-client-platform: web_claude_ai`). These routes normally take a
+browser cookie and sit behind Cloudflare, so a refusal is the expected
+outcome; the app then shows what each host answered. When it works, opening a
+chat copies its last 30 text messages into a local thread (`web-<uuid>`) that
+can be continued on the watch. Nothing is written back to claude.ai.
+
+## 8. Fixtures (spec/fixtures)
 * `messages_stream.sse` — a full streamed Messages reply (text + stop).
 * `messages_refusal.sse` — stop_reason refusal.
+* `sessions_list_drift.json` — object-shaped `post_turn_summary` and one undecodable session.
 * `sessions_list.json` — three sessions (requires_action, running cloud, idle bridge, one archived).
 * `session_events_history.json` — `/events?limit` response with user/assistant/tool_use/result/system payloads.
 * `session_events_stream.sse` — live frames incl. stream_event deltas, a `can_use_tool` control_request, a `result`, and a `session_update` to ignore.

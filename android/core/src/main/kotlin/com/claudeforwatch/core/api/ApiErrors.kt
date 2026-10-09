@@ -15,8 +15,15 @@ sealed class ApiException(message: String, val status: Int? = null) : Exception(
     class NotAvailableInMode : ApiException("Sign in with your Claude account to use this.")
     class InvalidApiKey : ApiException("Check your API key.", 401)
     class SignedOut : ApiException("Your Claude sign-in expired. Sign in again.", 401)
-    class RateLimited(val retryAfterSeconds: Long?) :
-        ApiException(retryAfterSeconds?.let { "Rate limited. Try again in ${it}s." } ?: "Rate limited. Try again soon.", 429)
+    /**
+     * 429. [serverMessage] is Anthropic's own text (it says which limit was hit), [resetAtMillis]
+     * comes from `retry-after` or the `anthropic-ratelimit-*-reset` headers when present.
+     */
+    class RateLimited(
+        val retryAfterSeconds: Long?,
+        val serverMessage: String? = null,
+        val resetAtMillis: Long? = null,
+    ) : ApiException(rateLimitCopy(retryAfterSeconds, serverMessage, resetAtMillis), 429)
     class Overloaded : ApiException("Claude is overloaded. Try again in a moment.", 529)
 
     /** PROTOCOL §4: 400 "only authorized for use with Claude Code" ⇒ explain §1.2. */
@@ -37,7 +44,53 @@ sealed class ApiException(message: String, val status: Int? = null) : Exception(
     }
 }
 
+fun rateLimitCopy(retryAfterSeconds: Long?, serverMessage: String?, resetAtMillis: Long?): String {
+    val head = serverMessage?.trim()?.takeIf { it.isNotEmpty() && !it.equals("error", ignoreCase = true) }
+        ?.let { if (it.endsWith('.')) it else "$it." }?.take(140)
+        ?: "Rate limited."
+    val tail = when {
+        retryAfterSeconds != null && retryAfterSeconds < 120 -> " Try again in ${retryAfterSeconds}s."
+        retryAfterSeconds != null -> " Try again in ${(retryAfterSeconds + 59) / 60} min."
+        resetAtMillis != null -> " Resets at " + java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+            .format(java.time.Instant.ofEpochMilli(resetAtMillis).atZone(java.time.ZoneId.systemDefault())) + "."
+        else -> " Try again soon."
+    }
+    return head + tail
+}
+
 object ApiErrors {
+    /** Headers that explain a 429; none of them carry secrets. */
+    val RATE_LIMIT_HEADERS = listOf(
+        "retry-after",
+        "anthropic-ratelimit-unified-status",
+        "anthropic-ratelimit-unified-reset",
+        "anthropic-ratelimit-unified-representative-claim",
+        "anthropic-ratelimit-unified-5h-utilization",
+        "anthropic-ratelimit-unified-7d-utilization",
+        "anthropic-ratelimit-requests-reset",
+        "anthropic-ratelimit-tokens-reset",
+        "request-id",
+    )
+
+    /** Maps a non-2xx response to an [ApiException], reading the reset headers when present. */
+    fun from(status: Int, header: (String) -> String?, body: String, mode: AuthMode?): ApiException {
+        if (status != 429) return from(status, header("retry-after"), body, mode)
+        val (_, message) = parseError(body)
+        return ApiException.RateLimited(
+            retryAfterSeconds = header("retry-after")?.trim()?.toLongOrNull(),
+            serverMessage = message,
+            resetAtMillis = resetAt(header),
+        )
+    }
+
+    /** Earliest usable reset time: unified reset (epoch seconds) or an RFC 3339 `*-reset` header. */
+    fun resetAt(header: (String) -> String?): Long? {
+        header("anthropic-ratelimit-unified-reset")?.trim()?.toLongOrNull()?.let { return it * 1000 }
+        return listOf("anthropic-ratelimit-requests-reset", "anthropic-ratelimit-tokens-reset")
+            .mapNotNull { name -> header(name)?.let { runCatching { java.time.Instant.parse(it.trim()).toEpochMilli() }.getOrNull() } }
+            .minOrNull()
+    }
+
     /** Maps a non-2xx response to an [ApiException] (body is parsed, never logged). */
     fun from(status: Int, retryAfter: String?, body: String, mode: AuthMode?): ApiException {
         val (type, message) = parseError(body)
@@ -48,7 +101,7 @@ object ApiErrors {
             status == 403 && (lower.contains("trusted device") || lower.contains("trusted_device")) ->
                 ApiException.TrustedDeviceRequired()
             status == 400 && lower.contains("only authorized for use with claude code") -> ApiException.ClaudeCodeOnly()
-            status == 429 -> ApiException.RateLimited(retryAfter?.trim()?.toLongOrNull())
+            status == 429 -> ApiException.RateLimited(retryAfter?.trim()?.toLongOrNull(), message)
             status == 529 || type == "overloaded_error" -> ApiException.Overloaded()
             else -> ApiException.Http(status, type, message)
         }

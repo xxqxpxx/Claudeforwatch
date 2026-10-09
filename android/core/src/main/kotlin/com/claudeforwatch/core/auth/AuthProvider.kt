@@ -34,13 +34,21 @@ object AuthHeaders {
      * Exact header set per mode and endpoint. Throws [ApiException.NotAvailableInMode] for
      * endpoints an API key cannot reach (sessions, usage).
      */
+    /** The mode whose credential this endpoint is called with (chat may use a stored API key). */
+    fun effectiveMode(endpoint: Endpoint, credentials: Credentials): AuthMode =
+        if (endpoint == Endpoint.Messages) credentials.chatMode else credentials.mode
+
+    /** True when the request carries the OAuth bearer token (so a 401 may be fixed by refreshing). */
+    fun usesOAuth(endpoint: Endpoint, credentials: Credentials): Boolean =
+        effectiveMode(endpoint, credentials) == AuthMode.ClaudeAccount
+
     fun build(endpoint: Endpoint, credentials: Credentials, userAgent: String): Map<String, String> {
         val h = linkedMapOf(
             "anthropic-version" to ANTHROPIC_VERSION,
             "Content-Type" to "application/json",
             "User-Agent" to userAgent,
         )
-        when (credentials.mode) {
+        when (effectiveMode(endpoint, credentials)) {
             AuthMode.ApiKey -> {
                 if (endpoint != Endpoint.Messages) throw ApiException.NotAvailableInMode()
                 h["x-api-key"] = credentials.apiKey ?: throw ApiException.NotSignedIn()
@@ -69,7 +77,12 @@ object AuthHeaders {
 sealed interface AuthState {
     data object Loading : AuthState
     data object SignedOut : AuthState
-    data class SignedIn(val mode: AuthMode, val accountEmail: String?, val canUseSessions: Boolean) : AuthState
+    data class SignedIn(
+        val mode: AuthMode,
+        val accountEmail: String?,
+        val canUseSessions: Boolean,
+        val hasChatApiKey: Boolean = false,
+    ) : AuthState
 }
 
 /**
@@ -151,6 +164,37 @@ class AuthProvider(
         }
     }
 
+    /**
+     * Stores (or with null, removes) an API key for chat. Signed in with a Claude account, the key
+     * is added next to the OAuth tokens so sessions keep working; otherwise it becomes the sign-in.
+     * Returns true when it was added to an existing Claude-account sign-in.
+     */
+    suspend fun setChatApiKey(key: String?): Boolean = refreshLock.withLock {
+        val current = load()
+        val trimmed = key?.trim()?.takeIf { it.isNotEmpty() }
+        when {
+            current?.mode == AuthMode.ClaudeAccount -> {
+                val updated = current.copy(apiKey = trimmed)
+                store.save(updated)
+                cached = updated
+                publish()
+                true
+            }
+            trimmed != null -> {
+                val updated = Credentials.forApiKey(trimmed)
+                store.save(updated)
+                cached = updated
+                loaded = true
+                publish()
+                false
+            }
+            else -> {
+                signOutLocked()
+                false
+            }
+        }
+    }
+
     suspend fun signOut() = refreshLock.withLock { signOutLocked() }
 
     private suspend fun signOutLocked() {
@@ -163,6 +207,6 @@ class AuthProvider(
     private fun publish() {
         val c = cached
         _state.value = if (c == null) AuthState.SignedOut
-        else AuthState.SignedIn(c.mode, c.accountEmail, c.hasSessionsScope)
+        else AuthState.SignedIn(c.mode, c.accountEmail, c.hasSessionsScope, c.hasChatApiKey)
     }
 }

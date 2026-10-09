@@ -107,7 +107,7 @@ class SessionTranscriptViewModel(private val g: AppGraph, private val sessionId:
             _ui.update {
                 it.copy(
                     title = s.title ?: it.title,
-                    headerSummary = s.externalMetadata?.postTurnSummary?.let(ToolSummary::oneLine),
+                    headerSummary = s.externalMetadata?.summaryText?.let(ToolSummary::oneLine),
                     model = s.config?.model,
                     working = s.isRunning,
                     closed = s.isArchived,

@@ -36,10 +36,12 @@ class AppGraph(context: Context) {
     val tokenStore = EncryptedDataStoreTokenStore(context)
     val oauth = OAuthClient(http, userAgent = userAgent)
     val auth = AuthProvider(tokenStore, if (BuildConfig.PERSONAL_MODE) oauth else null, userAgent = userAgent)
-    val transport = ApiTransport(http, auth)
+    val transport = ApiTransport(http, auth) { line -> android.util.Log.w("CfwApi", line) }
     val messages = MessagesClient(transport)
     val sessions = SessionsClient(transport)
     val usage = UsageClient(transport)
+    /** EXPERIMENTAL claude.ai chat reader (personal builds, PROTOCOL §7). */
+    val webChats = com.claudeforwatch.core.api.WebChatsClient(http, auth)
     val routines = RoutinesClient(http, userAgent = userAgent)
     val threads = DataStoreThreadStore(context)
     val settings = SettingsRepository(context)

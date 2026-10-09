@@ -79,7 +79,11 @@ class Provisioner(context: Context, private val g: AppGraph = context.appGraph) 
     /** Stores the credentials and returns the display identity (email, or a key label). */
     private suspend fun provision(apiKey: String?, oauthCode: String?, credentialsB64: String?): String {
         val creds = when (val req = Provisioning.request(apiKey, oauthCode, credentialsB64)) {
-            is Provisioning.Request.ApiKey -> Credentials.forApiKey(Provisioning.apiKey(req.key))
+            is Provisioning.Request.ApiKey -> {
+                // Signed in with Claude: keep the account for sessions, use the key for chat.
+                val addedToAccount = g.auth.setChatApiKey(Provisioning.apiKey(req.key))
+                return if (addedToAccount) "an API key for chat (sessions keep your Claude sign-in)" else "an API key"
+            }
             is Provisioning.Request.OAuthCode -> {
                 requirePersonal()
                 val p = g.pendingAuth.load()

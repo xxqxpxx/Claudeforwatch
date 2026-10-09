@@ -95,7 +95,7 @@ class MessagesClient(private val transport: ApiTransport, private val baseUrl: S
         model: ClaudeModel = ClaudeModel.Default,
         effort: Effort = Effort.Default,
     ): Flow<MessagesStreamEvent> = flow {
-        val mode = transport.auth.validCredentials().mode
+        val mode = transport.auth.validCredentials().chatMode
         val body = buildRequestBody(history, model, effort, mode).toString()
         val response = transport.stream(Endpoint.Messages, "POST", "$baseUrl/v1/messages", body)
         response.body.sseEvents().collect { sse -> decode(sse)?.let { emit(it) } }

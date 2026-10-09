@@ -267,7 +267,7 @@ private fun PasteCodeFallback(vm: PhoneViewModel) {
 @Composable
 private fun ApiKeyCard(error: String?, vm: PhoneViewModel, onPaste: () -> Unit) = Section("Send an API key to the watch") {
     Text(
-        "A Console API key (sk-ant-…). The watch checks it with a tiny request before storing it.",
+        "A Console API key (sk-ant-…). If the watch is signed in with Claude, the key is used for chat only and sessions keep your Claude sign-in. Max and Team plans include monthly API credits for it.",
         style = MaterialTheme.typography.bodyMedium,
     )
     OutlinedTextField(

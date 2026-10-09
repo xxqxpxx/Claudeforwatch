@@ -15,7 +15,15 @@ import java.io.IOException
  * Authorized requests with the PROTOCOL rules: refresh once on 401 (claudeAccount only), map
  * errors to [ApiException], never retry anything else (a completion may already be billed).
  */
-class ApiTransport(val http: HttpClient, val auth: AuthProvider) {
+class ApiTransport(
+    val http: HttpClient,
+    val auth: AuthProvider,
+    /**
+     * Receives one line per failed request: status, method, path, error type and message,
+     * request-id and rate-limit headers. Never tokens, keys or bodies beyond the error text.
+     */
+    private val diagnostics: (String) -> Unit = {},
+) {
 
     suspend fun send(
         endpoint: Endpoint,
@@ -27,12 +35,13 @@ class ApiTransport(val http: HttpClient, val auth: AuthProvider) {
     ): HttpResponse {
         var creds = auth.validCredentials()
         var response = transport { http.request(build(endpoint, creds, method, url, body, extraHeaders)) }
-        if (response.status == 401 && creds.mode == AuthMode.ClaudeAccount) {
+        if (response.status == 401 && AuthHeaders.usesOAuth(endpoint, creds)) {
             creds = auth.refresh(staleAccessToken = creds.accessToken)
             response = transport { http.request(build(endpoint, creds, method, url, body, extraHeaders)) }
         }
         if (!acceptStatus(response.status)) {
-            throw ApiErrors.from(response.status, response.header("retry-after"), response.bodyString, creds.mode)
+            report(method, url, response.status, response.bodyString, response::header)
+            throw ApiErrors.from(response.status, response::header, response.bodyString, AuthHeaders.effectiveMode(endpoint, creds))
         }
         return response
     }
@@ -47,16 +56,26 @@ class ApiTransport(val http: HttpClient, val auth: AuthProvider) {
         var creds = auth.validCredentials()
         val headers = extraHeaders + ("Accept" to "text/event-stream")
         var stream = transport { http.stream(build(endpoint, creds, method, url, body, headers)) }
-        if (stream.status == 401 && creds.mode == AuthMode.ClaudeAccount) {
+        if (stream.status == 401 && AuthHeaders.usesOAuth(endpoint, creds)) {
             runCatching { stream.readText() } // drain/close the rejected response
             creds = auth.refresh(staleAccessToken = creds.accessToken)
             stream = transport { http.stream(build(endpoint, creds, method, url, body, headers)) }
         }
         if (!stream.isSuccessful) {
             val text = runCatching { stream.readText() }.getOrDefault("")
-            throw ApiErrors.from(stream.status, stream.header("retry-after"), text, creds.mode)
+            report(method, url, stream.status, text, stream::header)
+            throw ApiErrors.from(stream.status, stream::header, text, AuthHeaders.effectiveMode(endpoint, creds))
         }
         return stream
+    }
+
+    private fun report(method: String, url: String, status: Int, body: String, header: (String) -> String?) {
+        runCatching {
+            val (type, message) = ApiErrors.parseError(body)
+            val path = url.substringAfter("://").substringAfter('/', "").substringBefore('?')
+            val extras = ApiErrors.RATE_LIMIT_HEADERS.mapNotNull { name -> header(name)?.let { "$name=$it" } }
+            diagnostics("HTTP $status $method /$path type=$type message=${message?.take(200)} ${extras.joinToString(" ")}".trim())
+        }
     }
 
     private fun build(

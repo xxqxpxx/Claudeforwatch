@@ -1,0 +1,5 @@
+{"data":[
+ {"id":"cse_10Drift","title":"Watch app","created_at":"2026-10-09T03:00:00Z","last_event_at":"2026-10-09T04:19:00Z","unread":true,"status":"active","worker_status":"requires_action","environment_kind":"bridge","config":{"model":"claude-opus-5-5"},"external_metadata":{"last_seq":"407","post_turn_summary":{"needs_action":"send restricted command approval","summary":"Waiting on a Bash approval"},"pending_action":"permission"}},
+ {"id":"session_11Plain","title":"Docs pass","created_at":"2026-10-09T01:00:00Z","last_event_at":"2026-10-09T02:00:00Z","status":"active","worker_status":"idle","environment_kind":"cloud","config":{"model":"claude-sonnet-5-5"},"external_metadata":{"post_turn_summary":"README updated."}},
+ {"id":12345,"title":["not","a","string"]}
+],"next_cursor":null}

@@ -92,5 +92,8 @@ class SettingsViewModel(private val g: AppGraph) : ViewModel() {
 
     fun signOut() = viewModelScope.launch { g.signOut() }
 
+    /** Chat goes back to the Claude-account token; sessions are unaffected. */
+    fun removeChatKey() = viewModelScope.launch { g.auth.setChatApiKey(null) }
+
     fun dismissMessage() = _ui.update { it.copy(message = null) }
 }

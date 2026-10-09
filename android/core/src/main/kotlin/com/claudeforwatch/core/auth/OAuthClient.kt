@@ -125,7 +125,8 @@ class OAuthClient(
             scopes = token.scope?.split(' ')?.filter { it.isNotBlank() } ?: previous?.scopes ?: OAuthConfig.SCOPES,
             organizationUuid = token.organization?.uuid ?: previous?.organizationUuid,
             accountEmail = token.account?.emailAddress ?: previous?.accountEmail,
-            apiKey = null,
+            // A chat API key stored next to the account (PROTOCOL §1.3) survives refreshes.
+            apiKey = previous?.apiKey,
         )
     }
 

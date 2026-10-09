@@ -111,11 +111,10 @@ fun AskScreen(onOpenChat: (String) -> Unit) {
         },
     ) { spec ->
         question?.let { q -> item { ChatBubble(q, fromUser = true) } }
-        item {
-            when {
-                answer == null || (ui.isStreaming && answer.isEmpty()) -> CenteredBox { CircularProgressIndicator() }
-                else -> ChatBubble(answer, fromUser = false)
-            }
+        when {
+            ui.isStreaming && answer.isNullOrEmpty() -> item { CenteredBox { CircularProgressIndicator() } }
+            answer != null -> item { ChatBubble(answer, fromUser = false) }
+            // Finished without an answer (an error is shown below): no spinner.
         }
         ui.error?.let { msg -> item { Paragraph(msg, spec, color = MaterialTheme.colorScheme.error) } }
         item { ReadAloudSwitch(ui.readAloud, vm::setReadAloud, spec) }

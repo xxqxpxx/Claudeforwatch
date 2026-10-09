@@ -23,6 +23,7 @@ import com.claudeforwatch.ui.ListScreen
 import com.claudeforwatch.ui.Paragraph
 import com.claudeforwatch.ui.Routes
 import com.claudeforwatch.ui.vm.ChatsListViewModel
+import com.claudeforwatch.ui.vm.WebChatsUi
 import android.text.format.DateUtils
 
 /** Local quick-chat threads (PLAN §2). Long-press to delete. */
@@ -31,6 +32,9 @@ fun ChatsListScreen(onOpen: (String) -> Unit) {
     val graph = LocalContext.current.appGraph
     val vm: ChatsListViewModel = viewModel { ChatsListViewModel(graph) }
     val threads by vm.threads.collectAsStateWithLifecycle()
+    val webAvailable by vm.webChatsAvailable.collectAsStateWithLifecycle()
+    val web by vm.web.collectAsStateWithLifecycle()
+    val opening by vm.opening.collectAsStateWithLifecycle()
     var deleteId by remember { mutableStateOf<String?>(null) }
 
     ListScreen { spec ->
@@ -39,15 +43,41 @@ fun ChatsListScreen(onOpen: (String) -> Unit) {
         val list = threads
         when {
             list == null -> item { CenteredBox { CircularProgressIndicator() } }
-            list.isEmpty() -> item { Paragraph("Your chats stay on this watch.", spec) }
+            list.isEmpty() -> item { Paragraph("Your watch chats stay on this watch.", spec) }
             else -> items(list, key = { it.id }) { t ->
                 ListButton(
                     label = t.title.ifBlank { "Untitled" },
                     spec = spec,
                     onClick = { onOpen(t.id) },
                     onLongClick = { deleteId = t.id },
-                    secondary = DateUtils.getRelativeTimeSpanString(t.updatedAt).toString() + " · " + ClaudeModel.fromId(t.model).label,
+                    secondary = (if (t.id.startsWith("web-")) "claude.ai · " else "") +
+                        DateUtils.getRelativeTimeSpanString(t.updatedAt).toString() + " · " + ClaudeModel.fromId(t.model).label,
                 )
+            }
+        }
+
+        // EXPERIMENTAL: claude.ai web chats (PROTOCOL §7). May be refused by claude.ai.
+        if (webAvailable) {
+            item { Header("claude.ai", spec) }
+            when (val w = web) {
+                WebChatsUi.Idle -> item {
+                    ListButton("Load claude.ai chats", spec, onClick = vm::loadWebChats, secondary = "Experimental")
+                }
+                WebChatsUi.Loading -> item { CenteredBox { CircularProgressIndicator() } }
+                is WebChatsUi.Failed -> item {
+                    ListButton(w.message, spec, onClick = vm::loadWebChats, secondary = "Tap to retry")
+                }
+                is WebChatsUi.Loaded -> {
+                    if (w.chats.isEmpty()) item { Paragraph("No claude.ai chats found.", spec) }
+                    items(w.chats, key = { "web:" + it.uuid }) { c ->
+                        ListButton(
+                            label = c.name,
+                            spec = spec,
+                            onClick = { vm.openWebChat(c, onOpen) },
+                            secondary = if (opening == c.uuid) "Opening…" else "Copy to watch and continue",
+                        )
+                    }
+                }
             }
         }
     }

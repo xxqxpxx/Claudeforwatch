@@ -41,7 +41,7 @@ class SessionsClient(
     /** §5.1: the bare list must NOT carry the ccr-byoc beta header. */
     suspend fun list(): SessionListResponse {
         val r = transport.send(Endpoint.SessionsList, "GET", "$baseUrl/v1/code/sessions")
-        return CoreJson.decodeFromString(SessionListResponse.serializer(), r.bodyString)
+        return decodeList(r.bodyString)
     }
 
     suspend fun get(id: String): SessionDto {
@@ -116,6 +116,27 @@ class SessionsClient(
         }
 
     companion object {
+        /**
+         * Decodes the list one session at a time so a single session with an unexpected shape
+         * is skipped instead of failing the whole screen (the API is unofficial and drifts).
+         */
+        fun decodeList(body: String): SessionListResponse {
+            val root = CoreJson.parseToJsonElement(body) as? JsonObject
+                ?: throw IllegalStateException("The sessions list had an unexpected format.")
+            val items = (root["data"] as? kotlinx.serialization.json.JsonArray).orEmpty()
+            val sessions = items.mapNotNull { item ->
+                runCatching { CoreJson.decodeFromJsonElement(SessionDto.serializer(), item) }.getOrNull()
+            }
+            fun str(key: String) =
+                (root[key] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content
+            return SessionListResponse(
+                data = sessions,
+                nextCursor = str("next_cursor"),
+                resumeToken = str("resume_token"),
+                skipped = items.size - sessions.size,
+            )
+        }
+
         fun eventsBody(sessionId: String, payload: JsonElement): JsonObject = buildJsonObject {
             put("session_id", sessionId)
             putJsonArray("events") { add(buildJsonObject { put("payload", payload) }) }

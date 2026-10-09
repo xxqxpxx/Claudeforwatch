@@ -105,7 +105,9 @@ class ChatViewModel(private val g: AppGraph, context: Context, threadId: String?
                 _ui.update { it.copy(streamingText = null) }
                 throw e
             } catch (e: Exception) {
-                _ui.update { it.copy(thread = thread, streamingText = null, error = e.userMessage()) }
+                val creds = runCatching { g.auth.load() }.getOrNull()
+                val onAccount = creds != null && creds.chatMode == com.claudeforwatch.core.auth.AuthMode.ClaudeAccount
+                _ui.update { it.copy(thread = thread, streamingText = null, error = e.chatMessage(onAccount)) }
             } finally {
                 StreamingOngoingActivity.hide(appContext)
             }

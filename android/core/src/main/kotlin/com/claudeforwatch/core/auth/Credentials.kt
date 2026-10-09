@@ -31,6 +31,15 @@ data class Credentials(
 
     val hasSessionsScope: Boolean get() = mode == AuthMode.ClaudeAccount && SCOPE_SESSIONS in scopes
 
+    /**
+     * The credential chat (the Messages API) runs on. A Claude-account record may also carry an
+     * API key (PROTOCOL §1.3): chat then uses the key, which is the supported path and is billed
+     * to the key's Console org, while sessions keep using the OAuth token.
+     */
+    val chatMode: AuthMode get() = if (!apiKey.isNullOrBlank()) AuthMode.ApiKey else mode
+
+    val hasChatApiKey: Boolean get() = mode == AuthMode.ClaudeAccount && !apiKey.isNullOrBlank()
+
     /** PROTOCOL §1.1 record: every key present, nulls explicit (`"apiKey":null`). */
     fun encode(): String = RecordJson.encodeToString(serializer(), this)
 

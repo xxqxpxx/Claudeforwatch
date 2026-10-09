@@ -65,7 +65,7 @@ object SessionListReducer {
         workerStatus = s.workerStatus,
         needsAction = s.needsAction,
         isRunning = s.isRunning,
-        summary = s.externalMetadata?.postTurnSummary?.let(ToolSummary::oneLine),
+        summary = s.externalMetadata?.summaryText?.let(ToolSummary::oneLine),
         model = s.config?.model,
         unread = s.unread,
         lastEventAt = s.lastEventAt,

@@ -52,13 +52,24 @@ public struct Session: Codable, Sendable, Equatable, Identifiable {
         }
     }
 
+    /// Free-form metadata. `post_turn_summary` arrived as a string in early captures and as an
+    /// object (`{"needs_action": …}`) on a live account in Oct 2026, so it is kept as raw JSON.
     public struct ExternalMetadata: Codable, Sendable, Equatable {
-        public var postTurnSummary: String?
+        public var postTurnSummaryRaw: JSONValue?
         public var pendingAction: PendingAction?
 
         public init(postTurnSummary: String? = nil, pendingAction: PendingAction? = nil) {
-            self.postTurnSummary = postTurnSummary
+            self.postTurnSummaryRaw = postTurnSummary.map(JSONValue.string)
             self.pendingAction = pendingAction
+        }
+
+        /// One display line, whatever shape the summary has (PROTOCOL §5.1).
+        public var postTurnSummary: String? { SummaryText.of(postTurnSummaryRaw) }
+
+        /// What the session waits for, when the summary says so.
+        public var needsActionText: String? {
+            guard let s = postTurnSummaryRaw?["needs_action"]?.stringValue, !s.isEmpty else { return nil }
+            return s
         }
 
         enum CodingKeys: String, CodingKey {
@@ -68,8 +79,14 @@ public struct Session: Codable, Sendable, Equatable, Identifiable {
 
         public init(from decoder: any Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
-            postTurnSummary = try? c.decodeIfPresent(String.self, forKey: .postTurnSummary)
+            postTurnSummaryRaw = try? c.decodeIfPresent(JSONValue.self, forKey: .postTurnSummary)
             pendingAction = try? c.decodeIfPresent(PendingAction.self, forKey: .pendingAction)
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encodeIfPresent(postTurnSummaryRaw, forKey: .postTurnSummary)
+            try c.encodeIfPresent(pendingAction, forKey: .pendingAction)
         }
     }
 
@@ -139,11 +156,60 @@ public struct SessionList: Codable, Sendable, Equatable {
     public var data: [Session]
     public var nextCursor: String?
     public var resumeToken: String?
+    /// Sessions skipped because they could not be decoded (not on the wire).
+    public var skipped: Int = 0
 
     enum CodingKeys: String, CodingKey {
         case data
         case nextCursor = "next_cursor"
         case resumeToken = "resume_token"
+    }
+
+    public init(data: [Session], nextCursor: String? = nil, resumeToken: String? = nil, skipped: Int = 0) {
+        self.data = data
+        self.nextCursor = nextCursor
+        self.resumeToken = resumeToken
+        self.skipped = skipped
+    }
+
+    /// Decodes one session at a time: an odd session is skipped, never the whole list.
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        var items = try c.nestedUnkeyedContainer(forKey: .data)
+        var sessions: [Session] = []
+        var total = 0
+        while !items.isAtEnd {
+            total += 1
+            if let s = try? items.decode(Session.self) {
+                sessions.append(s)
+            } else {
+                _ = try? items.decode(JSONValue.self) // consume the bad element
+            }
+        }
+        data = sessions
+        skipped = total - sessions.count
+        nextCursor = try? c.decodeIfPresent(String.self, forKey: .nextCursor)
+        resumeToken = try? c.decodeIfPresent(String.self, forKey: .resumeToken)
+    }
+}
+
+/// Flattens an unknown summary value into display text.
+public enum SummaryText {
+    static let preferredKeys = ["needs_action", "summary", "text", "title", "status", "description"]
+
+    public static func of(_ value: JSONValue?) -> String? {
+        guard let value else { return nil }
+        switch value {
+        case .string(let s): return s.isEmpty ? nil : s
+        case .object(let o):
+            for key in preferredKeys { if let s = of(o[key]) { return s } }
+            for entry in o.entries { if let s = of(entry.value) { return s } }
+            return nil
+        case .array(let a):
+            for v in a { if let s = of(v) { return s } }
+            return nil
+        default: return nil
+        }
     }
 }
 

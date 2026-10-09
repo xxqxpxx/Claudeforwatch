@@ -63,6 +63,15 @@ fun SettingsScreen(onSignIn: () -> Unit, onOpenSession: (String) -> Unit) {
                         iconRes = R.drawable.ic_claude,
                     )
                 }
+                if (auth.mode == AuthMode.ClaudeAccount) {
+                    item {
+                        ListButton(
+                            "Chat uses", spec,
+                            onClick = { if (auth.hasChatApiKey) vm.removeChatKey() },
+                            secondary = if (auth.hasChatApiKey) "API key · tap to remove" else "Claude account · send a key from the phone app",
+                        )
+                    }
+                }
                 if (BuildConfig.PERSONAL_MODE && auth.mode == AuthMode.ApiKey) {
                     item { ListButton("Sign in with Claude", spec, onClick = onSignIn, secondary = "Unlocks sessions and usage") }
                 }
