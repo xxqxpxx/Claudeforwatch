@@ -23,7 +23,24 @@ data class AppSettings(
     /** PROTOCOL §1.2 warning acknowledged (PERSONAL_MODE builds only). */
     val accountWarningAccepted: Boolean = false,
     val routineId: String? = null,
+    /**
+     * Claude-account chat: "session" sends questions through [chatSessionId] so the Claude
+     * subscription covers them (PROTOCOL §5.7); "api" calls the Messages API (uses a chat API
+     * key when one is stored).
+     */
+    val chatVia: ChatVia = ChatVia.Session,
+    val chatSessionId: String? = null,
+    val chatSessionTitle: String? = null,
 )
+
+enum class ChatVia(val wire: String, val label: String) {
+    Session("session", "Subscription (Claude Code)"),
+    Api("api", "API");
+
+    companion object {
+        fun fromWire(v: String?) = entries.firstOrNull { it.wire == v } ?: Session
+    }
+}
 
 class SettingsRepository(context: Context) {
     private val store = context.applicationContext.settingsStore
@@ -35,6 +52,9 @@ class SettingsRepository(context: Context) {
             readAloud = p[READ_ALOUD] ?: false,
             accountWarningAccepted = p[WARNING] ?: false,
             routineId = p[ROUTINE_ID],
+            chatVia = ChatVia.fromWire(p[CHAT_VIA]),
+            chatSessionId = p[CHAT_SESSION_ID],
+            chatSessionTitle = p[CHAT_SESSION_TITLE],
         )
     }
 
@@ -44,6 +64,11 @@ class SettingsRepository(context: Context) {
     suspend fun setEffort(effort: Effort) = edit { it[EFFORT] = effort.wire }
     suspend fun setReadAloud(on: Boolean) = edit { it[READ_ALOUD] = on }
     suspend fun setAccountWarningAccepted() = edit { it[WARNING] = true }
+    suspend fun setChatVia(via: ChatVia) = edit { it[CHAT_VIA] = via.wire }
+    suspend fun setChatSession(id: String?, title: String?) = edit {
+        if (id == null) { it.remove(CHAT_SESSION_ID); it.remove(CHAT_SESSION_TITLE) }
+        else { it[CHAT_SESSION_ID] = id; it[CHAT_SESSION_TITLE] = title ?: "Session" }
+    }
     suspend fun setRoutineId(id: String?) = edit { if (id == null) it.remove(ROUTINE_ID) else it[ROUTINE_ID] = id }
 
     /** Random per-install id for session presence (PROTOCOL §5.6). Not tied to the account. */
@@ -65,5 +90,8 @@ class SettingsRepository(context: Context) {
         val WARNING = booleanPreferencesKey("account_warning_accepted")
         val ROUTINE_ID = stringPreferencesKey("routine_id")
         val INSTALL_ID = stringPreferencesKey("install_id")
+        val CHAT_VIA = stringPreferencesKey("chat_via")
+        val CHAT_SESSION_ID = stringPreferencesKey("chat_session_id")
+        val CHAT_SESSION_TITLE = stringPreferencesKey("chat_session_title")
     }
 }

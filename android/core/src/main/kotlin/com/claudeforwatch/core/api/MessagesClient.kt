@@ -53,6 +53,9 @@ enum class Effort(val wire: String) {
 sealed interface MessagesStreamEvent {
     data class Started(val model: String?) : MessagesStreamEvent
     data class TextDelta(val text: String) : MessagesStreamEvent
+
+    /** The whole reply so far, replacing earlier text (session-backed chat, PROTOCOL §5.7). */
+    data class TextSnapshot(val text: String) : MessagesStreamEvent
     data class Stop(val stopReason: String?, val outputTokens: Int?) : MessagesStreamEvent
     data class Error(val type: String?, val message: String?) : MessagesStreamEvent
 }
@@ -69,6 +72,7 @@ data class MessagesReduction(
     fun apply(event: MessagesStreamEvent): MessagesReduction = when (event) {
         is MessagesStreamEvent.Started -> copy(model = event.model ?: model)
         is MessagesStreamEvent.TextDelta -> copy(text = text + event.text)
+        is MessagesStreamEvent.TextSnapshot -> copy(text = event.text)
         is MessagesStreamEvent.Stop -> copy(stopReason = event.stopReason ?: stopReason, outputTokens = event.outputTokens ?: outputTokens)
         is MessagesStreamEvent.Error -> copy(errorType = event.type, errorMessage = event.message)
     }

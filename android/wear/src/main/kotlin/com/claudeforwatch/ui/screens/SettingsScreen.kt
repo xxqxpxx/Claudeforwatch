@@ -38,7 +38,7 @@ const val POLICY_NOTICE =
         "private sign-in, which Anthropic does not support for third-party apps."
 
 @Composable
-fun SettingsScreen(onSignIn: () -> Unit, onOpenSession: (String) -> Unit) {
+fun SettingsScreen(onSignIn: () -> Unit, onOpenSession: (String) -> Unit, onPickChatSession: () -> Unit = {}) {
     val graph = LocalContext.current.appGraph
     val vm: SettingsViewModel = viewModel { SettingsViewModel(graph) }
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -82,6 +82,24 @@ fun SettingsScreen(onSignIn: () -> Unit, onOpenSession: (String) -> Unit) {
 
         // Chat
         item { Header("Chat", spec) }
+        if (graph.canUseSessions(auth)) {
+            item {
+                ListButton(
+                    "Chat runs on", spec,
+                    onClick = { vm.toggleChatVia() },
+                    secondary = ui.settings.chatVia.label,
+                )
+            }
+            if (ui.settings.chatVia == com.claudeforwatch.data.ChatVia.Session) {
+                item {
+                    ListButton(
+                        "Chat session", spec,
+                        onClick = onPickChatSession,
+                        secondary = ui.settings.chatSessionTitle ?: "Not set · tap to pick",
+                    )
+                }
+            }
+        }
         item { ListButton("Model", spec, onClick = { vm.cycleModel() }, secondary = ui.settings.model.label) }
         item { ListButton("Effort", spec, onClick = { vm.cycleEffort() }, secondary = ui.settings.effort.wire) }
         item { ReadAloudSwitch(ui.settings.readAloud, { vm.setReadAloud(it) }, spec) }

@@ -80,7 +80,7 @@ class ChatViewModel(private val g: AppGraph, context: Context, threadId: String?
             StreamingOngoingActivity.show(appContext)
             var reduction = MessagesReduction()
             try {
-                g.messages.stream(thread.messages, ClaudeModel.fromId(thread.model), settings.effort).collect { event ->
+                chatStream(thread, text.trim(), settings).collect { event ->
                     reduction = reduction.apply(event)
                     _ui.update { it.copy(streamingText = reduction.text) }
                 }
@@ -106,12 +106,34 @@ class ChatViewModel(private val g: AppGraph, context: Context, threadId: String?
                 throw e
             } catch (e: Exception) {
                 val creds = runCatching { g.auth.load() }.getOrNull()
-                val onAccount = creds != null && creds.chatMode == com.claudeforwatch.core.auth.AuthMode.ClaudeAccount
+                val onAccount = creds != null && creds.chatMode == com.claudeforwatch.core.auth.AuthMode.ClaudeAccount &&
+                    !usesSession(g.settings.current())
                 _ui.update { it.copy(thread = thread, streamingText = null, error = e.chatMessage(onAccount)) }
             } finally {
                 StreamingOngoingActivity.hide(appContext)
             }
         }
+    }
+
+    /**
+     * Where a question goes. Signed in with a Claude account (personal build) and set to
+     * "Subscription", it is sent to the chosen Claude Code session; otherwise the Messages API.
+     */
+    private suspend fun chatStream(thread: ChatThread, question: String, settings: com.claudeforwatch.data.AppSettings) =
+        if (usesSession(settings)) {
+            val sessionId = settings.chatSessionId
+                ?: throw IllegalStateException("Pick a chat session: Settings → Chat session. Any Claude Code session works.")
+            g.sessionChat.ask(sessionId, question)
+        } else {
+            g.messages.stream(thread.messages, ClaudeModel.fromId(thread.model), settings.effort)
+        }
+
+    private suspend fun usesSession(settings: com.claudeforwatch.data.AppSettings): Boolean {
+        val creds = g.auth.load() ?: return false
+        return com.claudeforwatch.BuildConfig.PERSONAL_MODE &&
+            creds.mode == com.claudeforwatch.core.auth.AuthMode.ClaudeAccount &&
+            creds.hasSessionsScope &&
+            settings.chatVia == com.claudeforwatch.data.ChatVia.Session
     }
 
     /** onStop: cancel the stream (PLAN §4). */

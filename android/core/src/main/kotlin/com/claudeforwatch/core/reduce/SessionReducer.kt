@@ -95,6 +95,11 @@ class TranscriptState {
     }
 
     /** History from `GET …/events?sort_order=desc`: applied in ascending sequence order. */
+    /** Ignore everything up to and including [sequence] (used to follow only new events). */
+    fun startAfter(sequence: Long?) {
+        if (sequence != null && (lastSequence == null || sequence > lastSequence!!)) lastSequence = sequence
+    }
+
     fun apply(history: List<SessionEventEnvelope>) {
         history.sortedBy { it.sequence ?: Long.MIN_VALUE }.forEach { apply(it) }
     }

@@ -290,3 +290,15 @@ watch or emulator in this session:
   phone + watch, `connectedNodes` naming, Chrome Custom Tab redirecting to `http://localhost`
   (and the paste fallback when it doesn't), the live token exchange from the phone, and the
   phone UI on small screens / large font scale.
+
+## Chat on your Claude subscription (personal build)
+
+Anthropic refuses direct chat requests from this app on a Claude-account sign-in, even with plan
+headroom. Personal builds therefore send chat through one of your Claude Code sessions:
+
+1. On your computer, in an empty folder: `claude remote-control --name "Watch chat"`.
+2. On the watch: Settings → Chat session → pick "Watch chat".
+3. Ask as usual. Replies come from that session and count against your Claude plan.
+
+Settings → "Chat runs on" switches between this and the API (which uses a chat API key if one is
+stored). If the computer sleeps, the watch says the session is offline.

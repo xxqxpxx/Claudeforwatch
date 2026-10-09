@@ -92,6 +92,12 @@ class SettingsViewModel(private val g: AppGraph) : ViewModel() {
 
     fun signOut() = viewModelScope.launch { g.signOut() }
 
+    fun toggleChatVia() = viewModelScope.launch {
+        val next = if (g.settings.current().chatVia == com.claudeforwatch.data.ChatVia.Session)
+            com.claudeforwatch.data.ChatVia.Api else com.claudeforwatch.data.ChatVia.Session
+        g.settings.setChatVia(next)
+    }
+
     /** Chat goes back to the Claude-account token; sessions are unaffected. */
     fun removeChatKey() = viewModelScope.launch { g.auth.setChatApiKey(null) }
 

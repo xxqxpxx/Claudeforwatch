@@ -39,6 +39,8 @@ class AppGraph(context: Context) {
     val transport = ApiTransport(http, auth) { line -> android.util.Log.w("CfwApi", line) }
     val messages = MessagesClient(transport)
     val sessions = SessionsClient(transport)
+    /** Chat through a Claude Code session, covered by the Claude subscription (PROTOCOL §5.7). */
+    val sessionChat = com.claudeforwatch.core.api.SessionChat(sessions)
     val usage = UsageClient(transport)
     /** EXPERIMENTAL claude.ai chat reader (personal builds, PROTOCOL §7). */
     val webChats = com.claudeforwatch.core.api.WebChatsClient(http, auth)

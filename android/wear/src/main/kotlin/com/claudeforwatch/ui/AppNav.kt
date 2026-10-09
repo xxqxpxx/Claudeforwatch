@@ -16,6 +16,7 @@ import com.claudeforwatch.appGraph
 import com.claudeforwatch.core.auth.AuthState
 import com.claudeforwatch.ui.screens.AskScreen
 import com.claudeforwatch.ui.screens.ChatTranscriptScreen
+import com.claudeforwatch.ui.screens.ChatSessionPickerScreen
 import com.claudeforwatch.ui.screens.ChatsListScreen
 import com.claudeforwatch.ui.screens.HomeScreen
 import com.claudeforwatch.ui.screens.SessionTranscriptScreen
@@ -34,6 +35,7 @@ object Routes {
     const val CHAT = "chat/{id}"
     const val SIGN_IN = "signin"
     const val SETTINGS = "settings"
+    const val CHAT_SESSION_PICKER = "chatSessionPicker"
     const val NEW_CHAT_ID = "new"
 
     fun session(id: String) = "session/$id"
@@ -97,7 +99,11 @@ fun ClaudeWatchApp(openRequests: StateFlow<String?>, onOpenHandled: () -> Unit) 
                     SettingsScreen(
                         onSignIn = { nav.navigate(Routes.SIGN_IN) },
                         onOpenSession = { id -> nav.navigate(Routes.session(id)) },
+                        onPickChatSession = { nav.navigate(Routes.CHAT_SESSION_PICKER) },
                     )
+                }
+                composable(Routes.CHAT_SESSION_PICKER) {
+                    ChatSessionPickerScreen(onDone = { nav.popBackStack() })
                 }
             }
         }

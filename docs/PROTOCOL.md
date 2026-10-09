@@ -268,6 +268,24 @@ shows the count.
 `POST /v1/code/sessions/{id}/client/presence` `{"client_id":"<installId>","connected_at":<ms>}`
 on open, `{"client_id":…,"clear":true}` on close (best effort).
 
+### 5.7 Chat through a Claude Code session (subscription chat)
+Direct Messages API chat on the account token was refused with 429 on a live
+Max account that still had plan headroom, so in personal builds chat defaults
+to running inside a Claude Code session the user picks (Settings → Chat
+session; a `claude remote-control --name "Watch chat"` session in an empty
+folder is ideal). This is the user's own Claude Code doing the work, so the
+subscription covers it. Per question:
+1. `GET /v1/code/sessions/{id}`: refuse if archived, or if a bridge session's
+   `connection_status` is not `connected` (computer asleep).
+2. `GET …/events?limit=1&sort_order=desc` → baseline sequence.
+3. `POST …/events` with the user text prefixed by
+   `[Sent from my watch. Reply in plain text, one to three short sentences, no markdown. Don't run tools or change files unless I ask.]`.
+4. Stream from the baseline; find our echoed user turn (text ends with the
+   question); the reply is the assistant text after it (stream deltas shown
+   live, replaced by the final payload); stop at the next `result`. A
+   `can_use_tool` request ends the reply with "waiting for your approval".
+   Five-minute cap. Leaving the screen stops watching; the session keeps going.
+
 ## 6. Start a cloud session from the watch (official routines API, optional)
 If the user pastes a routine token (`sk-ant-oat01-…` shown in claude.ai when
 creating an API-triggered routine) and its id (`trig_…`):
