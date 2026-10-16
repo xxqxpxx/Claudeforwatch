@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Harbor Master Preview</title>
+<style>
+:root{--bg:#e2e3e5;--accent:#2a9df4;--ink:#111}
+@media(prefers-color-scheme:dark){:root{--bg:#1a1b1e;--ink:#eee}}
+body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:var(--bg);color:var(--ink);font-family:system-ui,sans-serif}
+.watch{padding:0 16px}
+svg{width:min(88vw,420px);height:auto;display:block}
+.sw{display:flex;gap:10px}
+.sw button{width:30px;height:30px;border-radius:50%;border:2px solid #888;cursor:pointer}
+p{margin:0;font-size:13px;opacity:.7}
+</style></head><body>
+<div class="watch"><svg viewBox="0 0 400 400" id="w">
+<defs><radialGradient id="bz" cx=".4" cy=".3"><stop offset="0" stop-color="#d9dde2"/><stop offset="1" stop-color="#7d838a"/></radialGradient></defs>
+<rect x="140" y="0" width="120" height="400" rx="30" fill="#2b2b2e"/>
+<circle cx="200" cy="200" r="190" fill="url(#bz)"/>
+<circle cx="200" cy="200" r="172" fill="#000"/>
+<g id="ticks"></g>
+<g font-family="system-ui" fill="#ddd" text-anchor="middle" font-weight="600" font-size="26">
+<text x="200" y="64">12</text><text x="342" y="209">3</text><text x="200" y="352">6</text><text x="58" y="209">9</text></g>
+<text x="200" y="118" fill="#888" font-size="13" text-anchor="middle" font-family="system-ui" letter-spacing="2">HARBOR MASTER</text>
+<g id="comps" font-family="system-ui" fill="#fff" text-anchor="middle">
+<circle cx="130" cy="215" r="38" fill="none" stroke="#333" stroke-width="3"/>
+<text x="130" y="212" font-size="20" font-weight="700">54°</text><text x="130" y="230" font-size="11" fill="#9ab">4 mph</text>
+<circle cx="270" cy="215" r="38" fill="none" stroke="#333" stroke-width="3"/>
+<text x="270" y="213" font-size="22" font-weight="700" id="dd">30</text><text x="270" y="230" font-size="11" fill="#9ab" id="mm">MAY</text>
+<circle cx="200" cy="280" r="38" fill="none" stroke="#333" stroke-width="3"/>
+<path d="M200 242 a38 38 0 0 1 36 26" fill="none" stroke="var(--accent)" stroke-width="4" stroke-linecap="round"/>
+<text x="200" y="278" font-size="17" font-weight="700">70</text><text x="200" y="298" font-size="15" font-weight="700">7327</text>
+</g>
+<g id="hands">
+<line id="hh" x1="200" y1="200" x2="200" y2="125" stroke="#fff" stroke-width="10" stroke-linecap="round"/>
+<line id="mh" x1="200" y1="200" x2="200" y2="75" stroke="var(--accent)" stroke-width="8" stroke-linecap="round"/>
+<line id="sh" x1="200" y1="225" x2="200" y2="60" stroke="var(--accent)" stroke-width="2"/>
+<circle cx="200" cy="200" r="7" fill="#fff"/></g>
+</svg></div>
+<div class="sw"></div>
+<p>Original concept preview · Pixel Watch 4 style · live time</p>
+<script>
+const t=document.getElementById('ticks');
+for(let i=0;i<60;i++){const a=i*6*Math.PI/180,big=i%5==0,r1=big?150:160,r2=168;
+const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+l.setAttribute('x1',200+Math.sin(a)*r1);l.setAttribute('y1',200-Math.cos(a)*r1);
+l.setAttribute('x2',200+Math.sin(a)*r2);l.setAttribute('y2',200-Math.cos(a)*r2);
+l.setAttribute('stroke',big?'#aaa':'#444');l.setAttribute('stroke-width',big?5:2);t.appendChild(l);}
+const d=new Date();document.getElementById('dd').textContent=d.getDate();
+document.getElementById('mm').textContent=d.toLocaleString('en',{month:'short'}).toUpperCase();
+function tick(){const n=new Date(),s=n.getSeconds()+n.getMilliseconds()/1000,m=n.getMinutes()+s/60,h=n.getHours()%12+m/60;
+const set=(id,deg)=>document.getElementById(id).setAttribute('transform',`rotate(${deg} 200 200)`);
+set('hh',h*30);set('mh',m*6);set('sh',s*6);requestAnimationFrame(tick)}tick();
+[['#2a9df4'],['#ff9f0a'],['#30d158'],['#ff453a']].forEach(([c])=>{const b=document.createElement('button');b.style.background=c;
+b.onclick=()=>document.documentElement.style.setProperty('--accent',c);document.querySelector('.sw').appendChild(b)});
+</script></body></html>
