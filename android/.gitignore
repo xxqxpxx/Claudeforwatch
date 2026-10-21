@@ -11,3 +11,8 @@ captures/
 .idea/
 .cxx/
 .externalNativeBuild/
+
+# Release signing material (docs/RELEASING.md) — never commit.
+keystore.properties
+*.jks
+*.keystore
